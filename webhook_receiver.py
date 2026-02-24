@@ -74,5 +74,5 @@ async def poll_openai():
 
 
 if __name__ == "__main__":
-    print("[Poller] Started — polling every 60s")
+    print("Tracker is Up")
     asyncio.run(poll_openai())
