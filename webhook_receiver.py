@@ -24,6 +24,7 @@ def log_event(product: str, status: str, message: str = ""):
 async def poll_openai():
     etag = None
     last_modified = None
+    is_first_poll = True
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -50,6 +51,10 @@ async def poll_openai():
                                 continue
                             seen_incident_ids.add(iid)
 
+                            # first poll: just collect known IDs
+                            if is_first_poll:
+                                continue
+
                             name = incident.get("name", "Unknown Incident")
                             status = format_status(incident.get("status", "unknown"))
                             impact = incident.get("impact", "unknown").title()
@@ -66,6 +71,10 @@ async def poll_openai():
                                 status=f"{name} — {status} ({impact} impact)",
                                 message=message,
                             )
+
+                        if is_first_poll:
+                            print(f"[Poller] Seeded {len(seen_incident_ids)} known incidents — watching for new ones")
+                            is_first_poll = False
 
             except Exception as e:
                 print(f"[error] {e}")
