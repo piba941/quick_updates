@@ -1,15 +1,11 @@
-from fastapi import FastAPI, Request
-from contextlib import asynccontextmanager
-from datetime import datetime
 import asyncio
 import aiohttp
-import uvicorn
-import os
+from datetime import datetime
 
 
-seen_incident_ids: set[str] = set()
 POLL_URL = "https://status.openai.com/api/v2/incidents.json"
 POLL_INTERVAL = 60
+seen_incident_ids: set[str] = set()
 
 
 def format_status(status: str) -> str:
@@ -77,49 +73,6 @@ async def poll_openai():
             await asyncio.sleep(POLL_INTERVAL)
 
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    task = asyncio.create_task(poll_openai())
-    yield
-    task.cancel()
-
-
-app = FastAPI(lifespan=lifespan)
-
-
-@app.post("/webhook")
-async def receive_webhook(request: Request):
-    payload = await request.json()
-
-    if "component_update" in payload:
-        update = payload["component_update"]
-        component = payload.get("component", {})
-        name = component.get("name") or update.get("name", "Unknown Service")
-        new_status = format_status(update.get("new_status", "unknown"))
-        log_event(product=f"OpenAI API - {name}", status=new_status)
-
-    elif "incident" in payload:
-        incident = payload["incident"]
-        name = incident.get("name", "Unnamed Incident")
-        status = format_status(incident.get("status", "unknown"))
-        impact = incident.get("impact", "unknown").title()
-        affected = [c["name"] for c in incident.get("components", []) if "name" in c]
-        affected_str = ", ".join(affected) if affected else "Unknown"
-        updates = incident.get("incident_updates", [])
-        message = updates[0].get("body", "") if updates else ""
-        log_event(
-            product=f"OpenAI API - {affected_str}",
-            status=f"{name} — {status} ({impact} impact)",
-            message=message,
-        )
-
-    else:
-        print(f"Unknown payload received")
-
-    return {"status": "ok"}
-
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("webhook_receiver:app", host="0.0.0.0", port=port)
+    print("[Poller] Started — polling every 60s")
+    asyncio.run(poll_openai())
